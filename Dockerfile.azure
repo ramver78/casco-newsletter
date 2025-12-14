@@ -1,0 +1,113 @@
+# Combined Dockerfile for Azure App Service
+# Single container with both frontend and backend
+
+FROM --platform=linux/amd64 node:20-alpine AS frontend-builder
+
+WORKDIR /app
+
+# Copy frontend package files
+COPY package*.json ./
+
+# Install frontend dependencies
+RUN npm ci
+
+# Copy frontend source
+COPY public ./public
+COPY src ./src
+COPY tsconfig.json ./
+
+# Set API URL for production build
+ENV REACT_APP_API_URL=/api
+
+# Build the React app
+RUN npm run build
+
+# Production stage
+FROM --platform=linux/amd64 node:20-alpine
+
+WORKDIR /app
+
+# Install nginx and supervisor
+RUN apk add --no-cache nginx supervisor
+
+# Copy backend
+COPY api/package*.json ./api/
+RUN cd api && npm ci --only=production
+
+COPY api/*.js ./api/
+
+# Copy built frontend
+COPY --from=frontend-builder /app/build ./public
+
+# Create nginx config for Azure
+RUN mkdir -p /run/nginx
+COPY <<EOF /etc/nginx/http.d/default.conf
+server {
+    listen 80;
+    server_name localhost;
+    root /app/public;
+    index index.html;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+
+    location /api {
+        proxy_pass http://127.0.0.1:3005;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+
+# Create supervisor config
+COPY <<EOF /etc/supervisord.conf
+[supervisord]
+nodaemon=true
+logfile=/dev/null
+logfile_maxbytes=0
+
+[program:nginx]
+command=nginx -g "daemon off;"
+autostart=true
+autorestart=true
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+
+[program:api]
+command=node /app/api/server.js
+directory=/app/api
+autostart=true
+autorestart=true
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+environment=NODE_ENV="production",PORT="3005"
+EOF
+
+# Create data directory
+RUN mkdir -p /app/api/data
+
+# Expose port 80 (Azure expects this)
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:80 || exit 1
+
+# Start supervisor (runs both nginx and node)
+CMD ["supervisord", "-c", "/etc/supervisord.conf"]
