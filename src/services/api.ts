@@ -34,9 +34,9 @@ async function apiRequest<T>(
   return response.json();
 }
 
-// Auth API
+// Auth API - Passwordless (email + MFA only)
 export const authApi = {
-  login: async (email: string, password: string, mfaCode?: string) => {
+  login: async (email: string, mfaCode?: string) => {
     const data = await apiRequest<{ 
       user?: any; 
       token?: string; 
@@ -46,7 +46,7 @@ export const authApi = {
       userId?: string 
     }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password, mfaCode }),
+      body: JSON.stringify({ email, mfaCode }),
     });
     
     if (data.mfaRequired) {
@@ -54,7 +54,6 @@ export const authApi = {
     }
     
     if (data.mfaSetupRequired) {
-      // Store setup token temporarily for MFA setup
       localStorage.setItem('casco_setup_token', data.setupToken || '');
       localStorage.setItem('casco_user', JSON.stringify(data.user));
       return { mfaSetupRequired: true, user: data.user };
@@ -68,7 +67,7 @@ export const authApi = {
     return data;
   },
 
-  register: async (email: string, password: string, name: string) => {
+  register: async (email: string, name: string) => {
     const data = await apiRequest<{ 
       user: any; 
       token?: string; 
@@ -76,7 +75,7 @@ export const authApi = {
       mfaSetupRequired?: boolean;
     }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, name }),
+      body: JSON.stringify({ email, name }),
     });
     
     if (data.mfaSetupRequired && data.setupToken) {
@@ -124,8 +123,7 @@ export const authApi = {
     });
   },
 
-  verifyAndCompleteMfaSetup: async (code: string, email: string, password: string) => {
-    // First verify MFA with setup token
+  verifyAndCompleteMfaSetup: async (code: string, email: string) => {
     const setupToken = localStorage.getItem('casco_setup_token');
     if (!setupToken) {
       throw new Error('Setup session expired. Please login again.');
@@ -137,9 +135,9 @@ export const authApi = {
       body: JSON.stringify({ code }),
     });
 
-    // Now login again with MFA to get full access token
+    // Now login again with MFA code to get full access token
     localStorage.removeItem('casco_setup_token');
-    return authApi.login(email, password, code);
+    return authApi.login(email, code);
   },
 
   verifyMfa: async (code: string) => {

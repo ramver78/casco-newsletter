@@ -215,9 +215,9 @@ const ALLOWED_EMAIL_DOMAIN = '@cascoauto.com';
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: 'Email, password, and name are required' });
+    const { email, name } = req.body;
+    if (!email || !name) {
+      return res.status(400).json({ error: 'Email and name are required' });
     }
     if (!email.toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN)) {
       return res.status(403).json({ error: `Registration is only available for ${ALLOWED_EMAIL_DOMAIN} email addresses.` });
@@ -226,11 +226,9 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
     const user = db.createUser({
       id: uuidv4(),
       email: email.toLowerCase(),
-      password: hashedPassword,
       name,
       role: 'reader',
       mfaEnabled: false,
@@ -246,28 +244,31 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// Passwordless login - email + MFA code only
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password, mfaCode } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+    const { email, mfaCode } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    const user = db.getUserByEmail(email);
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    const user = db.getUserByEmail(email.toLowerCase());
+    if (!user) return res.status(401).json({ error: 'User not found. Please register first.' });
 
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) return res.status(401).json({ error: 'Invalid credentials' });
-
-    if (user.mfaEnabled && user.mfaSecret) {
-      if (!mfaCode) return res.json({ mfaRequired: true, userId: user.id });
-      const isValidMfa = authenticator.verify({ token: mfaCode, secret: user.mfaSecret });
-      if (!isValidMfa) return res.status(401).json({ error: 'Invalid MFA code' });
-    }
-
-    if (!user.mfaEnabled) {
+    // If MFA is not set up, redirect to setup
+    if (!user.mfaEnabled || !user.mfaSecret) {
       const setupToken = jwt.sign({ id: user.id, email: user.email, role: user.role, mfaSetupOnly: true }, JWT_SECRET, { expiresIn: '15m' });
       return res.json({ mfaSetupRequired: true, user: { id: user.id, email: user.email, name: user.name, role: user.role, mfaEnabled: false }, setupToken });
     }
 
+    // MFA code required
+    if (!mfaCode) {
+      return res.json({ mfaRequired: true, userId: user.id });
+    }
+
+    // Verify MFA code
+    const isValidMfa = authenticator.verify({ token: mfaCode, secret: user.mfaSecret });
+    if (!isValidMfa) return res.status(401).json({ error: 'Invalid MFA code' });
+
+    // Success - issue token
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role, mfaEnabled: true }, token });
   } catch (error) {

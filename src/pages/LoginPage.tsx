@@ -6,15 +6,12 @@ import './LoginPage.css';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [showMfa, setShowMfa] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, isAuthenticated, user } = useAuth();
+  const { login, isAuthenticated, user, mfaSetupRequired } = useAuth();
   const navigate = useNavigate();
-
-  const { mfaSetupRequired } = useAuth();
 
   React.useEffect(() => {
     if (mfaSetupRequired) {
@@ -22,7 +19,6 @@ const LoginPage: React.FC = () => {
       return;
     }
     if (isAuthenticated && user) {
-      // Navigate based on role
       if (user.role === 'admin' || user.role === 'editor') {
         navigate('/editor');
       } else {
@@ -37,7 +33,7 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const result = await login(email, password, showMfa ? mfaCode : undefined);
+      const result = await login(email, showMfa ? mfaCode : undefined);
       
       if (result === 'mfa_required') {
         setShowMfa(true);
@@ -46,14 +42,13 @@ const LoginPage: React.FC = () => {
       }
       
       if (result === 'mfa_setup_required') {
-        // Navigation to MFA setup handled by useEffect
         return;
       }
       
       if (result === true) {
         // Navigation handled by useEffect
       } else {
-        setError('Invalid credentials. Please try again.');
+        setError('Login failed. Please try again.');
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred. Please try again.');
@@ -81,40 +76,22 @@ const LoginPage: React.FC = () => {
           {error && <div className="error-message">{error}</div>}
 
           {!showMfa ? (
-            <>
-              <div className="form-group">
-                <label htmlFor="email">
-                  <Mail size={18} />
-                  Email
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  required
-                  autoComplete="email"
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="password">
-                  <Lock size={18} />
-                  Password
-                </label>
-                <input
-                  type="password"
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  required
-                  minLength={4}
-                  autoComplete="current-password"
-                />
-              </div>
-            </>
+            <div className="form-group">
+              <label htmlFor="email">
+                <Mail size={18} />
+                Email
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="yourname@cascoauto.com"
+                required
+                autoComplete="email"
+              />
+              <p className="input-hint">Enter your Casco email to receive MFA prompt</p>
+            </div>
           ) : (
             <div className="form-group mfa-input">
               <label htmlFor="mfaCode">

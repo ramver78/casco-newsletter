@@ -137,12 +137,18 @@
   margin-bottom: 8px;
 }
 
-.domain-notice {
+.domain-notice,
+.mfa-notice {
   background: #e0f2fe;
   color: #0369a1;
   padding: 10px 14px;
   border-radius: 8px;
   margin-bottom: 12px !important;
+}
+
+.mfa-notice p {
+  margin: 0;
+  font-size: 0.9rem;
 }
 
 .register-link a,

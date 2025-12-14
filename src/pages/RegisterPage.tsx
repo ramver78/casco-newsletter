@@ -6,15 +6,11 @@ import './LoginPage.css';
 
 const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { register, isAuthenticated } = useAuth();
+  const { register, isAuthenticated, mfaSetupRequired } = useAuth();
   const navigate = useNavigate();
-
-  const { mfaSetupRequired } = useAuth();
 
   React.useEffect(() => {
     if (mfaSetupRequired) {
@@ -36,24 +32,12 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
-    // Validate password match
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    // Validate password length
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
-      const success = await register(email, password, name);
-      if (success) {
-        navigate('/');
+      const result = await register(email, name);
+      if (result === 'mfa_setup_required' || result === true) {
+        // Navigation handled by useEffect
       } else {
         setError('Registration failed. Please try again.');
       }
@@ -109,38 +93,8 @@ const RegisterPage: React.FC = () => {
             <span className="input-hint">Must be a @cascoauto.com email</span>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="password">
-              <Lock size={18} />
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a password"
-              required
-              minLength={6}
-              autoComplete="new-password"
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="confirmPassword">
-              <Lock size={18} />
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              id="confirmPassword"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm your password"
-              required
-              minLength={6}
-              autoComplete="new-password"
-            />
+          <div className="mfa-notice">
+            <p>🔐 After registration, you'll set up MFA using an authenticator app (Google Authenticator, Microsoft Authenticator, etc.)</p>
           </div>
 
           <button type="submit" className="login-btn" disabled={isLoading}>
