@@ -22,12 +22,55 @@ A secure internal newsletter application for Casco Auto employees with role-base
 
 ## Getting Started
 
-### Prerequisites
+### Option 1: Docker (Recommended for Production)
+
+#### Prerequisites
+- Docker & Docker Compose
+
+#### Quick Start
+```bash
+# Clone the repository
+git clone https://github.com/ramver78/casco-newsletter.git
+cd casco-newsletter
+
+# Create environment file
+cp .env.example .env
+# Edit .env and set a secure JWT_SECRET
+
+# Build and run (for Linux AMD64)
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f
+```
+
+The application will be available at http://localhost:80
+
+#### Docker Commands
+```bash
+# Stop containers
+docker-compose down
+
+# Rebuild after changes
+docker-compose up -d --build
+
+# View API logs
+docker-compose logs -f api
+
+# Access API container shell
+docker exec -it casco-newsletter-api sh
+```
+
+---
+
+### Option 2: Local Development
+
+#### Prerequisites
 
 - Node.js 18+ 
 - npm or yarn
 
-### Installation
+#### Installation
 
 1. Clone the repository:
 ```bash
